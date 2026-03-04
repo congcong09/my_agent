@@ -16,8 +16,8 @@ class Message(BaseModel):
 
     def __init__(self, content: str, role: MessageRole, **kwargs) -> None:
         super().__init__(
-            content=self.content,
-            role=self.role,
+            content=content,
+            role=role,
             timestamp=kwargs.get("timestamp", datetime.now()),
             metadata=kwargs.get("metadata", {}),
         )
