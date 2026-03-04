@@ -1,7 +1,8 @@
 import os
-from typing import Literal
+from typing import Iterator, Literal
 
 from openai import OpenAI
+from openai.types.chat import ChatCompletionMessageParam
 
 from .exceptions import HelloAgentsException
 
@@ -297,18 +298,59 @@ class HelloAgentsLLM:
 
     def think(
         self,
-        message: list[ChatCompletionMessageParam],
+        messages: list[ChatCompletionMessageParam],
         temperature: float | None = None,
-    ):
+    ) -> Iterator[str]:
         print(f"🧠 正在调用 {self.model} 模型...")
 
         try:
             response = self._client.chat.completions.create(
-                model=self.model,
+                model=self.model or "",
                 messages=messages,
                 temperature=temperature or 0,
                 max_tokens=self.max_tokens,
                 stream=True,
             )
+
+            print("✅ 大语言模型响应成功：")
+            for chunk in response:
+                content = chunk.choices[0].delta.content or ""
+                if content:
+                    print(content, end="", flush=True)
+                    yield content
+            print()
+        except Exception as e:
+            print(f"❌ 调用 LLM API时发生错误: {e}")
+            raise HelloAgentsException(f"LLM调用失败： {str(e)}")
+
+    def invoke(self, messages: list[ChatCompletionMessageParam], **kwargs) -> str:
+        """
+        非流式调用 LLM，返回完整响应。
+        适用于不需要流式处理的场景。
+        """
+        try:
+            response = self._client.chat.completions.create(
+                model=self.model or "",
+                messages=messages,
+                temperature=kwargs.get("temperature", self.temperature),
+                max_tokens=kwargs.get("max_tokens", self.max_tokens),
+                **{
+                    k: v
+                    for k, v in kwargs.items()
+                    if k not in ["temperature", "max_tokens"]
+                },
+            )
+
+            return response.choices[0].message.content
+
         except Exception as e:
             print(e)
+            raise HelloAgentsException(f"LLM调用失败：{str(e)}")
+
+    def stream_invoke(self, messages: list[ChatCompletionMessageParam], **kwargs) -> Iterator[str]
+      """
+      流式调用 LLM 的别名方法，与 think 方法功能相同。
+      保持向后兼容性。
+      """
+      temperature = kwargs.get('temperature')
+      yield from self.think(messages, temperature)
