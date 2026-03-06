@@ -240,12 +240,72 @@ class MemoryManager:
 
     def get_memory_stats(self) -> dict[str, Any]:
         """获取记忆统计信息"""
-        pass
+        stats = {
+            "user_id": self.user_id,
+            "enabled_types": list(self.memory_types.keys()),
+            "total_memories": 0,
+            "config": {
+                "max_capacity": self.config.max_capacity,
+                "importance_threshold": self.config.importance_threshold,
+                "decay_factor": self.config.decay_factor,
+            },
+        }
 
-    def _classify_memory_type(self):
-        pass
+        for memory_type, memory_instance in self.memory_types.items():
+            type_stats = memory_instance.get_status()
+            stats["memories_by_type"][memory_type] = type_stats
+            stats["total_memories"] += type_stats.get("count", 0)
 
-    def _calculate_importance(
-        self,
+        return stats
+
+    def clear_all_memories(self):
+        for memory_instance in self.memory_types.values():
+            memory_instance.clear()
+        logger.info("所有记忆已清空")
+
+    def _classify_memory_type(
+        self, content: str, metadata: dict[str, Any] | None = None
     ):
-        pass
+        """自动分类记忆类型"""
+        if metadata and metadata.get("type"):
+            return metadata["type"]
+
+        if self._is_episodic_content(content):
+            return "episodic"
+        elif self._is_semantic_content(content):
+            return "semantic"
+        else:
+            return "working"
+
+    def _is_episodic_content(self, content: str):
+        """判断是否为情景记忆内容"""
+        episodic_keywords = ["昨天", "今天", "明天", "上次", "记得", "发生", "经历"]
+        return any(keyword in content for keyword in episodic_keywords)
+
+    def _is_semantic_content(self, content: str):
+        """判断是否为语义记忆内容"""
+        semantic_keywords = ["定义", "概念", "规则", "知识", "原理", "方法"]
+        return any(keyword in content for keyword in semantic_keywords)
+
+    def _calculate_importance(self, content: str, metadata: dict[str, Any] | None):
+        """计算记忆重要性"""
+        importance = 0.5
+
+        if len(content) > 100:
+            importance += 0.1
+
+        important_keywords = ["重要", "关键", "必须", "注意", "警告", "错误"]
+        if any(keyword in content for keyword in important_keywords):
+            importance += 0.2
+
+        if metadata:
+            if metadata.get("priority") == "high":
+                importance += 0.3
+            elif metadata.get("priority") == "low":
+                importance -= 0.2
+
+        return max(0.0, min(1.0, importance))
+
+    def __str__(self) -> str:
+        stats = self.get_memory_stats()
+        return f"MemoryManager(user={self.user_id}, total={stats['total_memories']})"
